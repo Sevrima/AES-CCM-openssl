@@ -43,7 +43,7 @@ int encrypt_aes_ccm(unsigned char *plaintext, int plaintext_len,
      * Setting IV len to 7. Not strictly necessary as this is the default
      * but shown here for the purposes of this example.
      */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 14, NULL))
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
         handleErrors();
 
     /* Set tag length */
@@ -109,7 +109,7 @@ int decrypt_aes_ccm(unsigned char *ciphertext, int ciphertext_len,
 
     /* Setting IV len to 7. Not strictly necessary as this is the default
      * but shown here for the purposes of this example */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 14, NULL))
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
         handleErrors();
 
     /* Set expected tag value. */
