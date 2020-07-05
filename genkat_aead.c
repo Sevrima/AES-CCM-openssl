@@ -123,7 +123,7 @@ int generate_test_vectors()
 			int decryptedtext_len = 0, ciphertext_len = 0;
 
 			/* Encrypt the plaintext */
-			ciphertext_len = encrypt_aes_gcm(msg, sizeof(msg), ad, sizeof(ad), key, nonce, ciphertext, tag);
+			ciphertext_len = encrypt_aes_ccm(msg, sizeof(msg), ad, sizeof(ad), key, nonce, ciphertext, tag);
 
 			//fprint_bstr(fp, "CT= ", ciphertext, ciphertext_len);
 			/* Do something useful with the ciphertext here */
@@ -137,7 +137,7 @@ int generate_test_vectors()
 			/* tag[0] ^= 1; */
 
 			/* Decrypt the ciphertext */
-			decryptedtext_len = decrypt_aes_gcm(ciphertext, ciphertext_len, ad, sizeof(ad), tag, key, nonce, msg2);
+			decryptedtext_len = decrypt_aes_ccm(ciphertext, ciphertext_len, ad, sizeof(ad), tag, key, nonce, msg2);
 			fprint_bstr(fp, "CT = ",ciphertext , ciphertext_len);
 			if(decryptedtext_len < 0)
 			{

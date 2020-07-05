@@ -94,55 +94,68 @@ void handleErrors(void)
     abort();
 }
 
-int encrypt_aes_gcm(unsigned char *plaintext, unsigned long long plaintext_len, unsigned char *aad,
-            unsigned long long aad_len, unsigned char *key, unsigned char *iv,
-            unsigned char *ciphertext, unsigned char *tag)
+int encrypt_aes_ccm(unsigned char *plaintext, int plaintext_len,
+                unsigned char *aad, int aad_len,
+                unsigned char *key,
+                unsigned char *iv,
+                unsigned char *ciphertext,
+                unsigned char *tag)
 {
-    EVP_CIPHER_CTX *ctx = NULL;
-    int len = 0, ciphertext_len = 0;
+    EVP_CIPHER_CTX *ctx;
+
+    int len;
+
+    int ciphertext_len;
+
 
     /* Create and initialise the context */
-    if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
+    if(!(ctx = EVP_CIPHER_CTX_new()))
+        handleErrors();
 
     /* Initialise the encryption operation. */
-    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL))
+    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ccm(), NULL, NULL, NULL))
         handleErrors();
 
-    /* Set IV length if default 12 bytes (96 bits) is not appropriate */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, 16, NULL))
+    /*
+     * Setting IV len to 7. Not strictly necessary as this is the default
+     * but shown here for the purposes of this example.
+     */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
         handleErrors();
+
+    /* Set tag length */
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, 14, NULL);
 
     /* Initialise key and IV */
-    if(1 != EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv)) handleErrors();
+    if(1 != EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv))
+        handleErrors();
 
-    /* Provide any AAD data. This can be called zero or more times as
-     * required
+    /* Provide the total plaintext length */
+    if(1 != EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len))
+        handleErrors();
+
+    /* Provide any AAD data. This can be called zero or one times as required */
+    if(1 != EVP_EncryptUpdate(ctx, NULL, &len, aad, aad_len))
+        handleErrors();
+
+    /*
+     * Provide the message to be encrypted, and obtain the encrypted output.
+     * EVP_EncryptUpdate can only be called once for this.
      */
-    if(aad && aad_len > 0)
-    {
-        if(1 != EVP_EncryptUpdate(ctx, NULL, &len, aad, aad_len))
-            handleErrors();
-    }
+    if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
+        handleErrors();
+    ciphertext_len = len;
 
-    /* Provide the message to be encrypted, and obtain the encrypted output.
-     * EVP_EncryptUpdate can be called multiple times if necessary
+    /*
+     * Finalise the encryption. Normally ciphertext bytes may be written at
+     * this stage, but this does not occur in CCM mode.
      */
-    if(plaintext)
-    {
-        if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
-            handleErrors();
-
-        ciphertext_len = len;
-    }
-
-    /* Finalise the encryption. Normally ciphertext bytes may be written at
-     * this stage, but this does not occur in GCM mode
-     */
-    if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) handleErrors();
+    if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len))
+        handleErrors();
     ciphertext_len += len;
 
     /* Get the tag */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, tag))
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_GET_TAG, 14, tag))
         handleErrors();
 
     /* Clean up */
@@ -151,67 +164,63 @@ int encrypt_aes_gcm(unsigned char *plaintext, unsigned long long plaintext_len, 
     return ciphertext_len;
 }
 
-int decrypt_aes_gcm(unsigned char *ciphertext, unsigned long long ciphertext_len, unsigned char *aad,
-            unsigned long long aad_len, unsigned char *tag, unsigned char *key, unsigned char *iv,
-            unsigned char *plaintext)
+int decrypt_aes_ccm(unsigned char *ciphertext, int ciphertext_len,
+                unsigned char *aad, int aad_len,
+                unsigned char *tag,
+                unsigned char *key,
+                unsigned char *iv,
+                unsigned char *plaintext)
 {
-    EVP_CIPHER_CTX *ctx = NULL;
-    int len = 0, plaintext_len = 0, ret;
+    EVP_CIPHER_CTX *ctx;
+    int len;
+    int plaintext_len;
+    int ret;
 
     /* Create and initialise the context */
-    if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
-
-    /* Initialise the decryption operation. */
-    if(!EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL))
+    if(!(ctx = EVP_CIPHER_CTX_new()))
         handleErrors();
 
-    /* Set IV length. Not necessary if this is 12 bytes (96 bits) */
-    if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, 16, NULL))
+    /* Initialise the decryption operation. */
+    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ccm(), NULL, NULL, NULL))
+        handleErrors();
+
+    /* Setting IV len to 7. Not strictly necessary as this is the default
+     * but shown here for the purposes of this example */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
+        handleErrors();
+
+    /* Set expected tag value. */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, 14, tag))
         handleErrors();
 
     /* Initialise key and IV */
-    if(!EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv)) handleErrors();
-
-    /* Provide any AAD data. This can be called zero or more times as
-     * required
-     */
-    if(aad && aad_len > 0)
-    {
-        if(!EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len))
-            handleErrors();
-    }
-
-    /* Provide the message to be decrypted, and obtain the plaintext output.
-     * EVP_DecryptUpdate can be called multiple times if necessary
-     */
-    if(ciphertext)
-    {
-        if(!EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
-            handleErrors();
-
-        plaintext_len = len;
-    }
-
-    /* Set expected tag value. Works in OpenSSL 1.0.1d and later */
-    if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag))
+    if(1 != EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv))
         handleErrors();
 
-    /* Finalise the decryption. A positive return value indicates success,
-     * anything else is a failure - the plaintext is not trustworthy.
+
+    /* Provide the total ciphertext length */
+    if(1 != EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len))
+        handleErrors();
+
+    /* Provide any AAD data. This can be called zero or more times as required */
+    if(1 != EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len))
+        handleErrors();
+
+    /*
+     * Provide the message to be decrypted, and obtain the plaintext output.
+     * EVP_DecryptUpdate can be called multiple times if necessary
      */
-    ret = EVP_DecryptFinal_ex(ctx, plaintext + len, &len);
+    ret = EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
+
+    plaintext_len = len;
 
     /* Clean up */
     EVP_CIPHER_CTX_free(ctx);
 
-    if(ret > 0)
-    {
+    if(ret > 0) {
         /* Success */
-        plaintext_len += len;
         return plaintext_len;
-    }
-    else
-    {
+    } else {
         /* Verify failed */
         return -1;
     }
